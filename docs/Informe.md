@@ -375,3 +375,22 @@ El **Gradient Boosting** es una alternativa válida que podría superarlo con op
 - **Modelos avanzados:** XGBoost o LightGBM, variantes optimizadas del Gradient Boosting.
 - **Validación cruzada k-fold:** Estimaciones más robustas del desempeño real.
 - **Modelos de series de tiempo:** Prophet o SARIMA para explotar la estructura temporal semanal del dataset.
+
+### 4.5 Conclusiones de Negocio
+
+Las siguientes conclusiones resumen los hallazgos más relevantes del estudio desde una perspectiva estratégica y comercial:
+
+**1. El aguacate orgánico tiene un sobreprecio consistente del 43% sobre el convencional.**
+Los consumidores pagan en promedio $0.50 más por unidad de aguacate orgánico frente al convencional (mediana de $1.65 vs $1.15). Esta prima se mantiene estable a lo largo de todas las regiones y períodos analizados, lo que indica que la categoría orgánica representa una oportunidad de alto margen para productores y distribuidores que puedan certificar su producto.
+
+**2. La ubicación geográfica genera diferencias de precio superiores al 50%.**
+El precio promedio del aguacate varía desde menos de $1.20 en mercados como West Texas/New Mexico y Phoenix/Tucson hasta más de $1.60 en San Francisco, Hartford/Springfield y el Noreste. Esta disparidad sugiere que las estrategias de distribución y fijación de precios deben adaptarse regionalmente, ya que un mismo producto puede generar ingresos significativamente distintos según el mercado donde se comercialice.
+
+**3. El precio del aguacate sigue patrones estacionales predecibles.**
+Los datos muestran ciclos anuales con alzas recurrentes en ciertos meses del año, típicamente asociados a eventos de alto consumo (temporada de barbacoa, eventos deportivos). Este patrón permite a los actores de la cadena de suministro anticipar períodos de demanda elevada y planificar estrategias de abastecimiento, promociones y ajustes de inventario con antelación.
+
+**4. Un mayor volumen de oferta se asocia con menores precios, pero no es el factor determinante.**
+La relación inversa entre volumen de ventas y precio es consistente con la ley de oferta y demanda: a mayor disponibilidad del producto, menor el precio unitario. Sin embargo, el volumen solo explica una fracción menor de la variabilidad del precio. Los factores que más influyen son el tipo de producto (orgánico/convencional) y la región geográfica, lo que implica que las decisiones de pricing deben basarse más en el posicionamiento de mercado que en la cantidad producida.
+
+**5. Es viable predecir el precio del aguacate con un error promedio de solo $0.09.**
+El modelo predictivo desarrollado explica el 90% de la variabilidad del precio y se equivoca en promedio por menos de 9 centavos de dólar por unidad. Este nivel de precisión permite implementar herramientas de pronóstico de precios para la toma de decisiones en compras, logística y fijación de precios, reduciendo la incertidumbre del mercado y optimizando los márgenes de rentabilidad.
