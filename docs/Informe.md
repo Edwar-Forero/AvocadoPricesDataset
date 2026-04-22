@@ -131,17 +131,13 @@ Se verificó la existencia de valores nulos con `df_clean.isnull().sum()`. **El 
 
 Se aplicó la función `estandarizar_nombres_columnas(df_clean)` para convertir todos los nombres de columnas a minúsculas y reemplazar espacios por guiones bajos. Esto evita errores al acceder a columnas con espacios (e.g., `Total Volume` → `total_volume`) y sigue las convenciones de Python.
 
-### 2.6 Detección de Valores Atípicos
+### 2.6 Separación Train/Test (Split)
 
-Para `total_volume` se identificó un **12.59% de valores atípicos** mediante el método IQR (rango intercuartílico: outlier = valor fuera de [Q1 − 1.5×IQR, Q3 + 1.5×IQR]).
-
-**Decisión de tratamiento — No eliminación:** Dado que este porcentaje es alto y los valores extremos representan comportamientos reales del mercado (la fila `TotalUS` agrega todos los mercados regionales), eliminar estos registros hubiera perdido información válida. En cambio, se aplicó **transformación logarítmica** implícita a través del escalado posterior, que comprime la escala de los valores extremos.
-
-### 2.7 Separación Train/Test (Split)
-
-Antes de aplicar cualquier transformación de escalado o encoding que use información de los datos, se realizó la separación:
+**Antes de aplicar cualquier tratamiento de outliers**, escalado o encoding que use información de los datos, se realizó la separación:
 
 ```python
+y = df_clean["averageprice"]
+X = df_clean.drop(columns=["averageprice"])
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
@@ -151,7 +147,39 @@ X_train, X_test, y_train, y_test = train_test_split(
 - **20% prueba (3,650 registros)** — para evaluar el desempeño en datos no vistos.
 - **`random_state=42`** — garantiza reproducibilidad: ejecutar el código múltiples veces produce exactamente la misma partición.
 
-**Importancia del orden:** El split se realizó *antes* del escalado y encoding para prevenir *data leakage* (filtración de información del conjunto de prueba al proceso de entrenamiento).
+**Importancia del orden:** El split se realizó *antes* del tratamiento de outliers, el escalado y el encoding para prevenir *data leakage* (filtración de información del conjunto de prueba al proceso de entrenamiento). Esto es crítico porque la winsorización de `averageprice` depende de estadísticas calculadas sobre los datos (Q1, Q3, IQR); si se calcularan sobre todo el dataset, incluirían información del test set, contaminando el entrenamiento.
+
+### 2.7 Detección y Tratamiento de Valores Atípicos (Post-Split)
+
+Se identificaron outliers en todas las variables numéricas usando el **método IQR**:
+- Un valor es atípico si está fuera del rango `[Q1 − 1.5×IQR, Q3 + 1.5×IQR]`
+
+Las estrategias aplicadas difieren según el porcentaje de outliers detectado y se ejecutan **después del split** para evitar data leakage:
+
+**Estrategia A — Log1p para variables de volumen (>10% outliers):**
+
+Las variables `4046`, `4225`, `4770`, `total_bags`, `small_bags`, `large_bags` y `xlarge_bags` presentan porcentajes de outliers superiores al 10%. Dado que estos valores extremos representan comportamientos reales del mercado (mercados nacionales como `TotalUS`), no se eliminaron. En cambio, se aplicó `np.log1p()` a cada variable **por separado en train y test**:
+
+```python
+for col in log_cols:
+    X_train[col] = np.log1p(X_train[col])
+    X_test[col]  = np.log1p(X_test[col])
+```
+
+Log1p es una transformación determinística que no depende de estadísticas calculadas sobre los datos, por lo que no causa data leakage. Comprime la escala exponencial a una escala lineal manejable y maneja correctamente los valores cero (log(0+1)=0).
+
+**Estrategia B — Winsorización IQR para `averageprice` (1.15% outliers):**
+
+Los límites de winsorización se calcularon **exclusivamente con datos de entrenamiento** y se aplicaron **solo a `y_train`**, dejando `y_test` sin modificar para una evaluación justa e imparcial:
+
+```python
+Q1  = y_train.quantile(0.25)
+Q3  = y_train.quantile(0.75)
+IQR = Q3 - Q1
+y_train = y_train.clip(lower=Q1 - 1.5*IQR, upper=Q3 + 1.5*IQR)
+```
+
+Esta decisión es fundamental: si las estadísticas de winsorización se calcularan sobre todo el dataset (incluyendo test), se estaría introduciendo información del conjunto de prueba en el proceso de entrenamiento, produciendo evaluaciones artificialmente optimistas.
 
 ### 2.8 One-Hot Encoding de Variables Categóricas
 

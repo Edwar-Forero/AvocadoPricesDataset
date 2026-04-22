@@ -70,7 +70,45 @@ Divide los datos en dos subconjuntos:
 **¿Por qué `random_state=42`?** El split es aleatorio por defecto. Sin una semilla fija, cada ejecución produciría una partición diferente y resultados distintos. `random_state=42` garantiza que cualquier persona que ejecute el código obtenga exactamente los mismos conjuntos de entrenamiento y prueba.
 
 **⚠️ Regla crítica: el split SIEMPRE antes del preprocesamiento**  
-El split debe hacerse antes de aplicar escalado o cualquier transformación que use estadísticos calculados sobre los datos. Si se aplica StandardScaler a todo el dataset antes del split, la media y desviación estándar se calculan incluyendo el conjunto de prueba, lo cual se denomina **data leakage** (filtración de datos). El modelo "vería" indirectamente el test durante el entrenamiento, produciendo evaluaciones optimistas e irreales.
+El split debe hacerse antes de aplicar escalado, tratamiento de outliers o cualquier transformación que use estadísticos calculados sobre los datos. Si se calcula la winsorización de `averageprice` usando todo el dataset antes del split, los límites (Q1, Q3, IQR) incluirían información del conjunto de prueba, lo cual se denomina **data leakage** (filtración de datos). El modelo "vería" indirectamente el test durante el entrenamiento, produciendo evaluaciones optimistas e irreales.
+
+---
+
+## 2b. Tratamiento de Outliers (Post-Split)
+
+El tratamiento de outliers se aplica **después** del split para evitar data leakage. Se utilizan dos estrategias:
+
+### Estrategia A: Log1p para variables de volumen
+```python
+log_cols = ['4046', '4225', '4770', 'total_bags',
+            'small_bags', 'large_bags', 'xlarge_bags']
+for col in log_cols:
+    X_train[col] = np.log1p(X_train[col])
+    X_test[col]  = np.log1p(X_test[col])
+```
+
+**¿Qué es log1p y por qué se usa?**  
+`np.log1p(x)` calcula `log(x + 1)`. Es una transformación matemática determinista: siempre produce el mismo resultado para el mismo valor de entrada, independientemente de los demás datos. Por eso **no causa data leakage** aunque se aplique a train y test por separado. Comprime los valores extremos (outliers) sin eliminar filas y maneja correctamente los ceros: `log(0+1) = 0`.
+
+**¿Por qué se aplica a train y test por separado?**  
+A diferencia de la winsorización (que depende de estadísticas), log1p no necesita "aprender" nada del train. Se aplica independientemente a cada conjunto por consistencia y buenas prácticas del pipeline.
+
+### Estrategia B: Winsorización IQR para averageprice
+```python
+Q1  = y_train.quantile(0.25)
+Q3  = y_train.quantile(0.75)
+IQR = Q3 - Q1
+fence_inf = Q1 - 1.5 * IQR
+fence_sup = Q3 + 1.5 * IQR
+y_train = y_train.clip(lower=fence_inf, upper=fence_sup)
+# y_test NO se modifica
+```
+
+**¿Por qué solo se winsorizan los datos de entrenamiento?**  
+La winsorización depende de estadísticas (Q1, Q3, IQR). Si estos valores se calcularan incluyendo el test set, los límites de recorte contendrían información sobre datos que el modelo no debería "conocer" durante el entrenamiento. Esto constituye **data leakage**.
+
+**¿Por qué y_test permanece sin modificar?**  
+El conjunto de prueba debe representar datos "del mundo real" que el modelo nunca ha visto. Winsorizar y_test alteraría los valores reales contra los que se evalúa el modelo, produciendo métricas artificialmente optimistas. Dejar y_test sin modificar garantiza una evaluación justa e imparcial.
 
 ---
 
@@ -511,7 +549,10 @@ El precio del aguacate tiene relaciones no lineales: el efecto de la región sob
 "Más poderoso" no significa "mejor en todos los contextos". Las redes neuronales requieren grandes volúmenes de datos (típicamente cientos de miles o millones de ejemplos) y arquitecturas cuidadosamente diseñadas para superar a los métodos de ensamble en datos tabulares. Con ~18,000 registros y muchas features binarias dispersas, los métodos de ensamble basados en árboles son históricamente superiores.
 
 **¿Qué es data leakage y cómo se evitó?**  
-Data leakage ocurre cuando información del conjunto de prueba se filtra al proceso de entrenamiento, produciendo evaluaciones artificialmente optimistas. Se evitó: (1) realizando el split antes del escalado, (2) usando `fit_transform` solo en train y `transform` en test para el StandardScaler, y (3) calculando el OHE de forma separada en train y test, alineando después.
+Data leakage ocurre cuando información del conjunto de prueba se filtra al proceso de entrenamiento, produciendo evaluaciones artificialmente optimistas. Se evitó: (1) realizando el split antes de cualquier transformación que dependa de estadísticas, (2) aplicando la winsorización de `averageprice` usando estadísticas calculadas **solo** sobre `y_train` y sin modificar `y_test`, (3) usando `fit_transform` solo en train y `transform` en test para el StandardScaler, y (4) calculando el OHE de forma separada en train y test, alineando después.
+
+**¿Por qué el tratamiento de outliers se hace después del split y no antes?**  
+La winsorización de `averageprice` calcula límites (Q1, Q3, IQR) a partir de los datos. Si estos límites se calculan sobre todo el dataset (train + test), incluyen información del test set, lo que constituye data leakage. La transformación log1p, en cambio, es determinista y no depende de estadísticas, por lo que no causa leakage aunque se aplique por separado. Por seguridad, ambas transformaciones se aplican después del split.
 
 **¿Por qué se eliminó `total_volume` y no las otras variables de volumen?**  
 `total_volume = 4046 + 4225 + 4770` es la suma exacta de las otras tres. Tener la suma y sus componentes simultáneamente crea dependencia lineal perfecta. Se eliminó la suma (más redundante) y se mantuvieron los componentes porque estos sí aportan información individual sobre qué tipo de aguacate se vende más en cada mercado.
